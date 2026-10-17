@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VitalsSync ICU - Multi-Patient Clinical Telemetry & OS Simulator</title>
+  <meta name="description" content="State-of-the-art Multi-Patient Clinical Telemetry Monitor demonstrating POSIX Shared Memory, Concurrency Mutexes, and IPC Process Management.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+  <!-- Top Global Header -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="hospital-badge">
+        <div class="heartbeat-pulse">
+          <svg viewBox="0 0 24 24" class="pulse-icon">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+        </div>
+        <div class="hospital-title">
+          <h1>VitalsSync ICU</h1>
+          <span class="sub-label">Operating Systems Laboratory Simulator</span>
+        </div>
+      </div>
+      <div class="os-tags">
+        <span class="tag-pill tag-posix">POSIX SHM 496B</span>
+        <span class="tag-pill tag-mutex">PTHREAD_PROCESS_SHARED</span>
+        <span class="tag-pill tag-fifo">FIFO /tmp/patient_monitor_fifo</span>
+      </div>
+    </div>
+
+    <!-- Live System Telemetry Metrics -->
+    <div class="header-center">
+      <div class="metric-chip">
+        <span class="chip-label">SYSTEM STATUS</span>
+        <div class="chip-val status-val" id="engineStatusBadge">
+          <span class="pulse-dot"></span>
+          <span id="engineStatusText">CONNECTING...</span>
+        </div>
+      </div>
+      <div class="metric-chip">
+        <span class="chip-label">MASTER PID</span>
+        <div class="chip-val" id="headerMasterPid">--</div>
+      </div>
+      <div class="metric-chip">
+        <span class="chip-label">TOTAL UPDATES</span>
+        <div class="chip-val text-cyan" id="headerTotalUpdates">0</div>
+      </div>
+      <div class="metric-chip">
+        <span class="chip-label">ALERTS LOGGED</span>
+        <div class="chip-val text-red" id="headerTotalAlerts">0</div>
+      </div>
+      <div class="metric-chip">
+        <span class="chip-label">UPTIME</span>
+        <div class="chip-val text-mono" id="headerUptime">00:00:00</div>
+      </div>
+    </div>
+
+    <!-- Master Action Controls -->
+    <div class="header-right">
+      <button class="btn btn-outline" id="btnToggleAudio" title="Toggle Clinical Heartbeat Tone">
+        <span id="audioIcon">🔊</span> <span id="audioText">Beeper</span>
+      </button>
+      <button class="btn btn-success" id="btnStartSimulator">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+        <span>Start Simulator</span>
+      </button>
+      <button class="btn btn-danger" id="btnStopSimulator">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M6 6h12v12H6z"/></svg>
+        <span>Shutdown (SIGTERM)</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Navigation Tab Bar -->
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="tab-monitor">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12zM5 10h3l1.5-3 3 6 1.5-3H19"/></svg>
+      <span>Live ICU Monitor</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-transfer">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M16 17.01V10h-2v7.01h-3L15 21l4-3.99h-3zM9 3L5 6.99h3V14h2V6.99h3L9 3z"/></svg>
+      <span>Live Information Transfer (IPC Flow)</span>
+      <span class="badge-mini" style="background: rgba(0, 255, 136, 0.2); color: var(--ecg-green); border-color: rgba(0, 255, 136, 0.4);">Showcase</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-race">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+      <span>Concurrency & Race Lab (CO-6)</span>
+      <span class="badge-mini">Live Demo</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-memory">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+      <span>Shared Memory & IPC Inspector (CO-3/4)</span>
+    </button>
+    <button class="tab-btn" data-tab="tab-alerts">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+      <span>Alert Audit Trail (CO-5)</span>
+      <span class="alert-counter-badge" id="tabAlertCount">0</span>
+    </button>
+  </nav>
+
+  <!-- Main Container -->
+  <main class="main-content">
+    
+    <!-- =====================================================================
+         TAB 1: LIVE ICU TELEMETRY MONITOR
+         ===================================================================== -->
+    <section class="tab-pane active" id="tab-monitor">
+      
+      <!-- Patient Telemetry Grid -->
+      <div class="patients-grid" id="patientsGrid">
+        <!-- Bed 101 Card -->
+        <article class="patient-card" id="cardBed101" data-bed="101">
+          <header class="patient-card-header">
+            <div class="patient-id-badge">
+              <span class="bed-num">BED 101</span>
+              <span class="sensor-pid" id="pid101">PID: --</span>
+            </div>
+            <div class="patient-info">
+              <h2 class="patient-name" id="name101">Alice Walker</h2>
+              <span class="patient-dept">Cardiology Telemetry Unit</span>
+            </div>
+            <div class="status-pill status-normal" id="statusPill101">
+              <span class="status-icon">●</span>
+              <span id="statusText101">NORMAL</span>
+            </div>
+          </header>
+
+          <!-- Waveform Display Screens -->
+          <div class="oscilloscope-wrapper">
+            <div class="lead-label">ECG LEAD II • 25mm/s • 10mm/mV</div>
+            <canvas class="waveform-canvas ecg-canvas" id="canvasEcg101" width="560" height="130"></canvas>
+            <div class="lead-label ppg-label">SPO2 PLETHYSMOGRAPH (PPG)</div>
+            <canvas class="waveform-canvas ppg-canvas" id="canvasPpg101" width="560" height="75"></canvas>
+          </div>
+
+          <!-- Vital Signs Readouts -->
+          <div class="vitals-row">
+            <div class="vital-box vital-hr">
+              <div class="vital-top">
+                <span class="vital-name">HR (BPM)</span>
+                <span class="vital-icon heart-anim" id="heartIcon101">♥</span>
+              </div>
+              <div class="vital-number text-green" id="valHr101">72.0</div>
+              <div class="vital-limits">
+                <span>NORM: 60-100</span>
+                <span class="seq-label">Seq #<span id="seq101">1</span></span>
+              </div>
+            </div>
+
+            <div class="vital-box vital-spo2">
+              <div class="vital-top">
+                <span class="vital-name">SpO2 (%)</span>
+                <span class="vital-icon">💧</span>
+              </div>
+              <div class="vital-number text-cyan" id="valSpo2101">98.6</div>
+              <div class="vital-limits">
+                <span>NORM: &ge; 95%</span>
+                <span class="ts-label" id="ts101">10:45:00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card Quick Action Footer -->
+          <footer class="patient-card-footer">
+            <button class="btn btn-sm btn-outline-cyan" onclick="openInjectionModal(101)">
+              ⚡ Inject Anomaly
+            </button>
+            <button class="btn btn-sm btn-outline-amber" onclick="sendSignal(101)" title="Send SIGUSR1 to Sensor Process">
+              🔔 Signal (SIGUSR1)
+            </button>
+          </footer>
+        </article>
+
+        <!-- Bed 102 Card -->
+        <article class="patient-card" id="cardBed102" data-bed="102">
+          <header class="patient-card-header">
+            <div class="patient-id-badge">
+              <span class="bed-num">BED 102</span>
+              <span class="sensor-pid" id="pid102">PID: --</span>
+            </div>
+            <div class="patient-info">
+              <h2 class="patient-name" id="name102">Bob Martinez</h2>
+              <span class="patient-dept">Intensive Care Unit (ICU-1)</span>
+            </div>
+            <div class="status-pill status-normal" id="statusPill102">
+              <span class="status-icon">●</span>
+              <span id="statusText102">NORMAL</span>
+            </div>
+          </header>
+
+          <div class="oscilloscope-wrapper">
+            <div class="lead-label">ECG LEAD II • 25mm/s • 10mm/mV</div>
+            <canvas class="waveform-canvas ecg-canvas" id="canvasEcg102" width="560" height="130"></canvas>
+            <div class="lead-label ppg-label">SPO2 PLETHYSMOGRAPH (PPG)</div>
+            <canvas class="waveform-canvas ppg-canvas" id="canvasPpg102" width="560" height="75"></canvas>
+          </div>
+
+          <div class="vitals-row">
+            <div class="vital-box vital-hr">
+              <div class="vital-top">
+                <span class="vital-name">HR (BPM)</span>
+                <span class="vital-icon heart-anim" id="heartIcon102">♥</span>
+              </div>
+              <div class="vital-number text-green" id="valHr102">82.5</div>
+              <div class="vital-limits">
+                <span>NORM: 60-100</span>
+                <span class="seq-label">Seq #<span id="seq102">1</span></span>
+              </div>
+            </div>
+
+            <div class="vital-box vital-spo2">
+              <div class="vital-top">
+                <span class="vital-name">SpO2 (%)</span>
+                <span class="vital-icon">💧</span>
+              </div>
+              <div class="vital-number text-cyan" id="valSpo2102">96.2</div>
+              <div class="vital-limits">
+                <span>NORM: &ge; 95%</span>
+                <span class="ts-label" id="ts102">10:45:00</span>
+              </div>
+            </div>
+          </div>
+
+          <footer class="patient-card-footer">
+            <button class="btn btn-sm btn-outline-cyan" onclick="openInjectionModal(102)">
+              ⚡ Inject Anomaly
+            </button>
+            <button class="btn btn-sm btn-outline-amber" onclick="sendSignal(102)" title="Send SIGUSR1 to Sensor Process">
+              🔔 Signal (SIGUSR1)
+            </button>
+          </footer>
+        </article>
+
+        <!-- Bed 103 Card -->
+        <article class="patient-card" id="cardBed103" data-bed="103">
+          <header class="patient-card-header">
+            <div class="patient-id-badge">
+              <span class="bed-num">BED 103</span>
+              <span class="sensor-pid" id="pid103">PID: --</span>
+            </div>
+            <div class="patient-info">
+              <h2 class="patient-name" id="name103">Clara Zhao</h2>
+              <span class="patient-dept">Post-Operative Recovery</span>
+            </div>
+            <div class="status-pill status-normal" id="statusPill103">
+              <span class="status-icon">●</span>
+              <span id="statusText103">NORMAL</span>
+            </div>
+          </header>
+
+          <div class="oscilloscope-wrapper">
+            <div class="lead-label">ECG LEAD II • 25mm/s • 10mm/mV</div>
+            <canvas class="waveform-canvas ecg-canvas" id="canvasEcg103" width="560" height="130"></canvas>
+            <div class="lead-label ppg-label">SPO2 PLETHYSMOGRAPH (PPG)</div>
+            <canvas class="waveform-canvas ppg-canvas" id="canvasPpg103" width="560" height="75"></canvas>
+          </div>
+
+          <div class="vitals-row">
+            <div class="vital-box vital-hr">
+              <div class="vital-top">
+                <span class="vital-name">HR (BPM)</span>
+                <span class="vital-icon heart-anim" id="heartIcon103">♥</span>
+              </div>
+              <div class="vital-number text-green" id="valHr103">66.0</div>
+              <div class="vital-limits">
+                <span>NORM: 60-100</span>
+                <span class="seq-label">Seq #<span id="seq103">1</span></span>
+              </div>
+            </div>
+
+            <div class="vital-box vital-spo2">
+              <div class="vital-top">
+                <span class="vital-name">SpO2 (%)</span>
+                <span class="vital-icon">💧</span>
+              </div>
+              <div class="vital-number text-cyan" id="valSpo2103">97.4</div>
+              <div class="vital-limits">
+                <span>NORM: &ge; 95%</span>
+                <span class="ts-label" id="ts103">10:45:00</span>
+              </div>
+            </div>
+          </div>
+
+          <footer class="patient-card-footer">
+            <button class="btn btn-sm btn-outline-cyan" onclick="openInjectionModal(103)">
+              ⚡ Inject Anomaly
+            </button>
+            <button class="btn btn-sm btn-outline-amber" onclick="sendSignal(103)" title="Send SIGUSR1 to Sensor Process">
+              🔔 Signal (SIGUSR1)
+            </button>
+          </footer>
+        </article>
+      </div>
+
+      <!-- Live Transfer Flow Ticker Bar (Connecting Bed Telemetry to OS IPC Pipeline) -->
+      <div class="live-ipc-ticker-bar">
+        <div class="ticker-left">
+          <span class="pulse-dot"></span>
+          <span class="ticker-label">LIVE OS IPC FLOW:</span>
+          <span class="ticker-event-text" id="liveIpcEventText">Sensors ➔ pthread_mutex_lock() ➔ POSIX SHM (0x030) ➔ Alert Detector ➔ alerts.log</span>
+        </div>
+        <button class="btn btn-sm btn-outline-cyan" onclick="switchToTab('tab-transfer')">
+          View Interactive Transfer Pipeline &rarr;
+        </button>
+      </div>
+
+      <!-- Quick Emergency Anomaly Control Panel (Dock) -->
+      <section class="injection-dock">
+        <div class="dock-header">
+          <div class="dock-title">
+            <span class="dock-icon">⚡</span>
+            <h3>Emergency Telemetry Injection Dock</h3>
+            <span class="badge-mini">Named FIFO IPC Channel</span>
+          </div>
+          <div class="dock-syntax">
+            <code>echo "inject &lt;id&gt; &lt;hr&gt; &lt;spo2&gt;" &gt; /tmp/patient_monitor_fifo</code>
+          </div>
+        </div>
+
+        <div class="dock-body">
+          <div class="dock-target-select">
+            <label for="dockBedSelect">Target Patient Bed:</label>
+            <select id="dockBedSelect" class="form-select">
+              <option value="101">Bed 101: Alice Walker (Cardiology)</option>
+              <option value="102">Bed 102: Bob Martinez (ICU-1)</option>
+              <option value="103">Bed 103: Clara Zhao (Post-Op)</option>
+            </select>
+          </div>
+
+          <!-- Fast Preset Buttons -->
+          <div class="dock-presets">
+            <button class="btn-preset btn-preset-danger" onclick="injectPreset(38.0, 84.0, 'Severe Bradycardia & Hypoxemia')">
+              <span class="p-title">🚨 Severe Bradycardia</span>
+              <span class="p-desc">HR: 38 BPM | SpO2: 84%</span>
+            </button>
+            <button class="btn-preset btn-preset-warning" onclick="injectPreset(145.0, 94.0, 'Acute Tachycardia')">
+              <span class="p-title">⚡ Acute Tachycardia</span>
+              <span class="p-desc">HR: 145 BPM | SpO2: 94%</span>
+            </button>
+            <button class="btn-preset btn-preset-danger" onclick="injectPreset(88.0, 78.0, 'Critical Hypoxemia')">
+              <span class="p-title">💧 Acute Hypoxemia</span>
+              <span class="p-desc">HR: 88 BPM | SpO2: 78%</span>
+            </button>
+            <button class="btn-preset btn-preset-critical" onclick="injectPreset(180.0, 65.0, 'Ventricular Arrest')">
+              <span class="p-title">💥 Cardiac Crisis</span>
+              <span class="p-desc">HR: 180 BPM | SpO2: 65%</span>
+            </button>
+            <button class="btn-preset btn-preset-success" onclick="injectPreset(72.0, 98.6, 'Normal Recovery')">
+              <span class="p-title"> Normal Recovery</span>
+              <span class="p-desc">HR: 72 BPM | SpO2: 98.6%</span>
+            </button>
+          </div>
+
+          <!-- Custom Sliders -->
+          <div class="dock-sliders">
+            <div class="slider-group">
+              <div class="slider-header">
+                <span>Custom Heart Rate</span>
+                <span class="slider-val text-green" id="sliderValHr">75 BPM</span>
+              </div>
+              <input type="range" id="sliderHr" min="30" max="200" step="1" value="75" class="range-slider">
+            </div>
+
+            <div class="slider-group">
+              <div class="slider-header">
+                <span>Custom SpO2</span>
+                <span class="slider-val text-cyan" id="sliderValSpo2">98 %</span>
+              </div>
+              <input type="range" id="sliderSpo2" min="60" max="100" step="1" value="98" class="range-slider">
+            </div>
+
+            <button class="btn btn-primary" id="btnCustomInject">
+              🚀 Inject via FIFO
+            </button>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- =====================================================================
+         TAB 2: LIVE INFORMATION TRANSFER (IPC FLOW VISUALIZER)
+         ===================================================================== -->
+    <section class="tab-pane" id="tab-transfer">
+      <div class="ipc-transfer-container">
+        
+        <!-- Header with controls -->
+        <header class="ipc-header-card">
+          <div class="ipc-title-group">
+            <h2>Live Inter-Process Information Transfer Visualizer</h2>
+            <p>
+              Showcases how discrete, independent Linux processes transfer physiological telemetry, enforce mutual exclusion,
+              and persist clinical audits through OS primitives: <strong>POSIX Shared Memory (mmap)</strong>, 
+              <strong>Process-Shared Robust Mutexes</strong>, <strong>Named FIFO Pipes</strong>, <strong>POSIX Signals</strong>, and <strong>low-level File I/O</strong>.
+            </p>
+          </div>
+          <div class="ipc-header-actions">
+            <button class="btn btn-primary" id="btnAutoTrace">
+              <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+              <span>▶ Run Animated End-to-End Transfer</span>
+            </button>
+            <button class="btn btn-outline" id="btnResetTrace">
+              <span>🔄 Reset Flow</span>
+            </button>
+          </div>
+        </header>
+
+        <!-- Interactive Step-by-Step Progress & Explanation Banner -->
+        <div class="step-trace-card" id="stepTraceCard">
+          <div class="step-progress-header">
+            <div class="step-badge" id="stepNumberBadge">STEP 1 OF 8</div>
+            <div class="step-title" id="stepStageTitle">EXTERNAL_COMMAND: Command Entry via Named Pipe</div>
+            <div class="step-nav-buttons">
+              <button class="btn btn-sm btn-outline" id="btnPrevStep">⏮ Prev</button>
+              <button class="btn btn-sm btn-success" id="btnNextStep">Next ⏭</button>
+            </div>
+          </div>
+          <div class="step-progress-bar-track">
+            <div class="step-progress-bar-fill" id="stepProgressBar" style="width: 12.5%;"></div>
+          </div>
+          <div class="step-details-grid">
+            <div class="step-detail-item">
+              <span class="detail-label">SOURCE COMPONENT:</span>
+              <span class="detail-val text-cyan" id="stepSource">Terminal / Web UI</span>
+            </div>
+            <div class="step-detail-item">
+              <span class="detail-label">IPC MECHANISM / CHANNEL:</span>
+              <span class="detail-val text-amber" id="stepChannel">Named FIFO Pipe (/tmp/patient_monitor_fifo)</span>
+            </div>
+            <div class="step-detail-item">
+              <span class="detail-label">DESTINATION TARGET:</span>
+              <span class="detail-val text-green" id="stepTarget">Named FIFO Inode Buffer</span>
+            </div>
+            <div class="step-detail-item">
+              <span class="detail-label">KERNEL SYSTEM CALL / API:</span>
+              <code class="detail-val text-mono text-cyan" id="stepSyscall">open('/tmp/patient_monitor_fifo', O_WRONLY) -> write()</code>
+            </div>
+          </div>
+          <div class="step-explanation" id="stepExplanation">
+            External command enters the OS filesystem via the Named Pipe inode. The kernel writes payload into a 64KB circular pipe buffer in RAM.
+          </div>
+        </div>
+
+        <!-- The Animated Visual Architecture Pipeline (Nodes & Connections) -->
+        <div class="pipeline-board">
+          
+          <!-- Stage 1: Data Sources & Writers -->
+          <div class="pipeline-column">
+            <div class="column-header">
+              <span class="col-icon">📡</span>
+              <h4>1. Telemetry Producers</h4>
+              <span class="col-sub">Independent Processes</span>
+            </div>
+
+            <div class="flow-node" id="nodeSensor101">
+              <div class="node-status-dot green"></div>
+              <div class="node-main">
+                <div class="node-name">Sensor Process #1</div>
+                <div class="node-sub">Patient 101 (PID <span id="flowPid101">--</span>)</div>
+              </div>
+              <div class="node-meta"><code>fork()</code></div>
+            </div>
+
+            <div class="flow-node" id="nodeSensor102">
+              <div class="node-status-dot green"></div>
+              <div class="node-main">
+                <div class="node-name">Sensor Process #2</div>
+                <div class="node-sub">Patient 102 (PID <span id="flowPid102">--</span>)</div>
+              </div>
+              <div class="node-meta"><code>fork()</code></div>
+            </div>
+
+            <div class="flow-node" id="nodeSensor103">
+              <div class="node-status-dot green"></div>
+              <div class="node-main">
+                <div class="node-name">Sensor Process #3</div>
+                <div class="node-sub">Patient 103 (PID <span id="flowPid103">--</span>)</div>
+              </div>
+              <div class="node-meta"><code>fork()</code></div>
+            </div>
+
+            <div class="flow-node node-external" id="nodeExternal">
+              <div class="node-status-dot amber"></div>
+              <div class="node-main">
+                <div class="node-name">External Controller</div>
+                <div class="node-sub">Shell / Web GUI Admin</div>
+              </div>
+              <div class="node-meta"><code>echo "inject"</code></div>
+            </div>
+          </div>
+
+          <!-- Arrow & Channel Connector Column -->
+          <div class="pipeline-connector-col">
+            <div class="pipe-wire wire-sensors-shm" id="wireSensorsShm">
+              <span class="wire-label">Atomic Write<br><code>pthread_mutex_lock()</code></span>
+              <div class="particle particle-green" id="particleSensor"></div>
+            </div>
+            <div class="pipe-wire wire-fifo" id="wireFifo">
+              <span class="wire-label">FIFO Named Pipe<br><code>/tmp/patient_fifo</code></span>
+              <div class="particle particle-amber" id="particleFifo"></div>
+            </div>
+          </div>
+
+          <!-- Stage 2: Central POSIX Shared Memory -->
+          <div class="pipeline-column col-shm">
+            <div class="column-header">
+              <span class="col-icon">🧠</span>
+              <h4>2. POSIX Shared Memory</h4>
+              <span class="col-sub">/dev/shm/patient_monitor_shm (496B)</span>
+            </div>
+
+            <div class="shm-board-box" id="nodeShmMaster">
+              <div class="shm-board-top">
+                <span class="shm-tag">PHYSICAL RAM FRAME (mmap MAP_SHARED)</span>
+                <span class="shm-lock-badge" id="flowGlobalLock">GLOBAL LOCK: FREE</span>
+              </div>
+
+              <div class="shm-slot" id="shmSlot101">
+                <div class="slot-header">
+                  <span class="slot-title">Bed 101 Slot (0x030)</span>
+                  <span class="slot-lock" id="slotLock101">MUTEX UNLOCKED</span>
+                </div>
+                <div class="slot-vitals">
+                  <span>HR: <strong class="text-green" id="flowHr101">72.0</strong> BPM</span>
+                  <span>SpO2: <strong class="text-cyan" id="flowSpo2101">98.6</strong> %</span>
+                  <span>Seq: #<strong id="flowSeq101">1</strong></span>
+                </div>
+              </div>
+
+              <div class="shm-slot" id="shmSlot102">
+                <div class="slot-header">
+                  <span class="slot-title">Bed 102 Slot (0x0B8)</span>
+                  <span class="slot-lock" id="slotLock102">MUTEX UNLOCKED</span>
+                </div>
+                <div class="slot-vitals">
+                  <span>HR: <strong class="text-green" id="flowHr102">82.5</strong> BPM</span>
+                  <span>SpO2: <strong class="text-cyan" id="flowSpo2102">96.2</strong> %</span>
+                  <span>Seq: #<strong id="flowSeq102">1</strong></span>
+                </div>
+              </div>
+
+              <div class="shm-slot" id="shmSlot103">
+                <div class="slot-header">
+                  <span class="slot-title">Bed 103 Slot (0x140)</span>
+                  <span class="slot-lock" id="slotLock103">MUTEX UNLOCKED</span>
+                </div>
+                <div class="slot-vitals">
+                  <span>HR: <strong class="text-green" id="flowHr103">66.0</strong> BPM</span>
+                  <span>SpO2: <strong class="text-cyan" id="flowSpo2103">97.4</strong> %</span>
+                  <span>Seq: #<strong id="flowSeq103">1</strong></span>
+                </div>
+              </div>
+
+              <div class="shm-board-footer">
+                <span>Aggregate Updates: <strong id="flowTotUpdates">0</strong></span>
+                <span>Alerts: <strong id="flowTotAlerts">0</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Arrow & Channel Connector Column -->
+          <div class="pipeline-connector-col">
+            <div class="pipe-wire wire-shm-detector" id="wireShmDetector">
+              <span class="wire-label">Atomic Read<br>Snapshot</span>
+              <div class="particle particle-cyan" id="particleRead"></div>
+            </div>
+            <div class="pipe-wire wire-detector-disk" id="wireDetectorDisk">
+              <span class="wire-label">Kernel File I/O<br><code>fsync(fd)</code></span>
+              <div class="particle particle-red" id="particleDisk"></div>
+            </div>
+          </div>
+
+          <!-- Stage 3: Consumers, Evaluators & Storage -->
+          <div class="pipeline-column">
+            <div class="column-header">
+              <span class="col-icon">🛡️</span>
+              <h4>3. Consumers & Disk</h4>
+              <span class="col-sub">Analysis & Audit</span>
+            </div>
+
+            <div class="flow-node node-detector" id="nodeAlertDetector">
+              <div class="node-status-dot red"></div>
+              <div class="node-main">
+                <div class="node-name">Alert Detector Process</div>
+                <div class="node-sub">PID <span id="flowAlertPid">--</span> (Polling Evaluator)</div>
+              </div>
+              <div class="node-meta"><code>evaluate_vitals()</code></div>
+            </div>
+
+            <div class="flow-node node-disk" id="nodeDiskLog">
+              <div class="node-status-dot green"></div>
+              <div class="node-main">
+                <div class="node-name">Persistent Disk Storage</div>
+                <div class="node-sub"><code>alerts.log</code> (POSIX I/O)</div>
+              </div>
+              <div class="node-meta"><code>write() + fsync()</code></div>
+            </div>
+
+            <div class="flow-node node-monitor" id="nodeUiMonitor">
+              <div class="node-status-dot cyan"></div>
+              <div class="node-main">
+                <div class="node-name">Live Clinical Dashboard</div>
+                <div class="node-sub">ANSI Terminal / Web GUI</div>
+              </div>
+              <div class="node-meta"><code>Oscilloscope 60FPS</code></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Kernel System Call Event Stream -->
+        <div class="ipc-event-stream-card">
+          <div class="stream-header">
+            <div class="stream-title">
+              <span class="pulse-dot"></span>
+              <h3>Live Kernel IPC System Call Event Stream</h3>
+              <span class="badge-mini">Real-Time Event Bus</span>
+            </div>
+            <div class="stream-filters">
+              <button class="chip-filter active" data-filter="ALL">ALL EVENTS</button>
+              <button class="chip-filter" data-filter="POSIX_SHM">POSIX SHM</button>
+              <button class="chip-filter" data-filter="NAMED_FIFO">NAMED FIFO</button>
+              <button class="chip-filter" data-filter="POSIX_SIGNAL">SIGNALS</button>
+              <button class="chip-filter" data-filter="FILE_IO">FILE I/O</button>
+            </div>
+          </div>
+
+          <div class="stream-table-wrapper">
+            <table class="stream-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Source Process</th>
+                  <th>IPC Channel</th>
+                  <th>Kernel System Call / Primitive</th>
+                  <th>Target Destination</th>
+                  <th>Data Payload Transferred</th>
+                  <th>OS Architectural Explanation</th>
+                </tr>
+              </thead>
+              <tbody id="streamTableBody">
+                <!-- Dynamically populated from /api/ipc_events -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         TAB 3: CONCURRENCY & RACE CONDITION LABORATORY (CO-6)
+         ===================================================================== -->
+    <section class="tab-pane" id="tab-race">
+      <div class="race-lab-container">
+        
+        <!-- Lab Header / Explanation -->
+        <header class="race-header-card">
+          <div class="race-title-group">
+            <h2>Operating Systems Concurrency & Mutual Exclusion Laboratory</h2>
+            <p>
+              Proves why OS synchronization primitives (process-shared mutexes) are strictly required.
+              Runs 4 parallel worker processes simultaneously performing 20,000 increments (80,000 expected updates) on shared memory.
+            </p>
+          </div>
+          <div class="race-actions">
+            <button class="btn btn-danger btn-lg" id="btnRunUnsync">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+              <span>Run Unsynchronized (No Locks)</span>
+            </button>
+            <button class="btn btn-success btn-lg" id="btnRunSync">
+              <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+              <span>Run Synchronized (POSIX Mutex)</span>
+            </button>
+          </div>
+        </header>
+
+        <!-- Dynamic Thread Collision Simulation Visualizer -->
+        <div class="thread-visualizer-card">
+          <h3>Concurrent Process Collision Simulation</h3>
+          <div class="thread-lanes">
+            <div class="thread-lane" id="laneWorker1">
+              <div class="lane-label">Worker PID #1</div>
+              <div class="worker-avatar">W1</div>
+              <div class="worker-action" id="actionW1">Idle</div>
+            </div>
+            <div class="thread-lane" id="laneWorker2">
+              <div class="lane-label">Worker PID #2</div>
+              <div class="worker-avatar">W2</div>
+              <div class="worker-action" id="actionW2">Idle</div>
+            </div>
+            <div class="thread-lane" id="laneWorker3">
+              <div class="lane-label">Worker PID #3</div>
+              <div class="worker-avatar">W3</div>
+              <div class="worker-action" id="actionW3">Idle</div>
+            </div>
+            <div class="thread-lane" id="laneWorker4">
+              <div class="lane-label">Worker PID #4</div>
+              <div class="worker-avatar">W4</div>
+              <div class="worker-action" id="actionW4">Idle</div>
+            </div>
+          </div>
+
+          <!-- Shared Memory Target in the Middle -->
+          <div class="shm-target-node" id="shmTargetNode">
+            <div class="target-title">POSIX SHARED MEMORY CRITICAL SECTION</div>
+            <div class="target-status" id="lockStatusVisual">LOCK STATUS: MUTEX INACTIVE</div>
+            <div class="counter-display">
+              COUNTER: <span id="visualCounter">0</span> / 80000
+            </div>
+          </div>
+        </div>
+
+        <!-- Comparative Metrics Grid -->
+        <div class="race-metrics-grid">
+          <!-- Metric 1: Data Corruptions (Torn Reads) -->
+          <div class="metric-card" id="cardTornReads">
+            <div class="metric-card-top">
+              <span class="m-title">TORN READS (CORRUPTIONS)</span>
+              <span class="m-icon">⚠️</span>
+            </div>
+            <div class="m-big-number" id="metricTornReads">0</div>
+            <div class="m-desc" id="descTornReads">Reader observed consistent telemetry state.</div>
+          </div>
+
+          <!-- Metric 2: Lost Updates -->
+          <div class="metric-card" id="cardLostUpdates">
+            <div class="metric-card-top">
+              <span class="m-title">LOST UPDATES (RACE CONDITION)</span>
+              <span class="m-icon">📉</span>
+            </div>
+            <div class="m-big-number" id="metricLostUpdates">0</div>
+            <div class="m-desc" id="descLostUpdates">All 80,000 atomic increments recorded.</div>
+          </div>
+
+          <!-- Metric 3: Actual vs Expected -->
+          <div class="metric-card">
+            <div class="metric-card-top">
+              <span class="m-title">ACTUAL COUNTER VALUE</span>
+              <span class="m-icon">🎯</span>
+            </div>
+            <div class="m-big-number text-cyan" id="metricActualCounter">80,000</div>
+            <div class="m-desc">Expected: 80,000 across 4 parallel processes.</div>
+          </div>
+
+          <!-- Metric 4: Execution Time -->
+          <div class="metric-card">
+            <div class="metric-card-top">
+              <span class="m-title">EXECUTION TIME</span>
+              <span class="m-icon">⏱️</span>
+            </div>
+            <div class="m-big-number text-mono" id="metricExecTime">0.00 ms</div>
+            <div class="m-desc">Benchmarked kernel time in WSL.</div>
+          </div>
+        </div>
+
+        <!-- Raw Terminal Output Terminal -->
+        <div class="terminal-card">
+          <div class="terminal-header">
+            <span class="term-dot red"></span>
+            <span class="term-dot yellow"></span>
+            <span class="term-dot green"></span>
+            <span class="term-title">Kernel Experiment Terminal Output (`./race_demo`)</span>
+          </div>
+          <pre class="terminal-body" id="raceTerminalOutput">Click "Run Unsynchronized" or "Run Synchronized" above to execute the real C concurrency benchmark...</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         TAB 4: SHARED MEMORY & IPC INSPECTOR (CO-3, CO-4)
+         ===================================================================== -->
+    <section class="tab-pane" id="tab-memory">
+      <div class="memory-inspector-container">
+        
+        <!-- Architecture Diagram Card -->
+        <div class="arch-overview-card">
+          <h2>POSIX Shared Memory Model & IPC Architecture</h2>
+          <p>
+            The simulator provisions a <strong>496-byte</strong> physical shared memory region at 
+            <code>/dev/shm/patient_monitor_shm</code> via <code>shm_open()</code> and <code>ftruncate()</code>.
+            Each concurrent process calls <code>mmap()</code> to project the same physical page into its private virtual address space.
+          </p>
+
+          <div class="process-tree">
+            <div class="tree-node master-node">
+              <div class="node-title">Master Process (main.c)</div>
+              <div class="node-pid" id="treeMasterPid">PID: --</div>
+              <div class="node-badge">Orchestrator & SHM Owner</div>
+            </div>
+            <div class="tree-children">
+              <div class="tree-node sensor-node">
+                <div class="node-title">Sensor 101</div>
+                <div class="node-pid" id="treeSensor101">PID: --</div>
+                <div class="node-sub">Alice Walker</div>
+              </div>
+              <div class="tree-node sensor-node">
+                <div class="node-title">Sensor 102</div>
+                <div class="node-pid" id="treeSensor102">PID: --</div>
+                <div class="node-sub">Bob Martinez</div>
+              </div>
+              <div class="tree-node sensor-node">
+                <div class="node-title">Sensor 103</div>
+                <div class="node-pid" id="treeSensor103">PID: --</div>
+                <div class="node-sub">Clara Zhao</div>
+              </div>
+              <div class="tree-node detector-node">
+                <div class="node-title">Alert Detector</div>
+                <div class="node-pid" id="treeAlertPid">PID: --</div>
+                <div class="node-sub">alerts.log Writer</div>
+              </div>
+              <div class="tree-node fifo-node">
+                <div class="node-title">FIFO Listener</div>
+                <div class="node-pid" id="treeFifoPid">PID: --</div>
+                <div class="node-sub">/tmp/patient_fifo</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 496-byte Shared Memory Map Explorer -->
+        <div class="memory-map-card">
+          <div class="card-header-flex">
+            <h3>SharedMemory Struct Byte Offset Inspector (496 Bytes Total)</h3>
+            <span class="badge-mini">Virtual Memory Page Alignment</span>
+          </div>
+          <div class="table-responsive">
+            <table class="shm-table" id="shmTable">
+              <thead>
+                <tr>
+                  <th>Byte Offset (Hex)</th>
+                  <th>Byte Offset (Dec)</th>
+                  <th>Size</th>
+                  <th>Field Name</th>
+                  <th>Data Type</th>
+                  <th>Current Runtime Value</th>
+                  <th>Syllabus Mapping</th>
+                </tr>
+              </thead>
+              <tbody id="shmTableBody">
+                <!-- Dynamically populated from /api/shm_layout -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         TAB 5: PERSISTENT ALERT AUDIT TRAIL (CO-5)
+         ===================================================================== -->
+    <section class="tab-pane" id="tab-alerts">
+      <div class="alerts-container">
+        
+        <header class="alerts-header">
+          <div class="alerts-title-group">
+            <h2>Persistent Alert Audit Log (`alerts.log`)</h2>
+            <p>
+              Abnormal physiological states persisted to disk via POSIX low-level file I/O 
+              (<code>open</code>, <code>write</code>, <code>fsync</code>) with duplicate suppression during polling.
+            </p>
+          </div>
+          <div class="alerts-controls">
+            <input type="text" id="alertSearchInput" class="form-input" placeholder="Search patient ID, name, or diagnosis...">
+            <select id="alertFilterLevel" class="form-select">
+              <option value="ALL">All Alert Levels</option>
+              <option value="CRITICAL">Critical Only</option>
+              <option value="WARNING">Warning Only</option>
+              <option value="RESOLVED">Resolved Only</option>
+            </select>
+            <button class="btn btn-outline" id="btnRefreshAlerts">
+              🔄 Refresh Log
+            </button>
+            <button class="btn btn-primary" id="btnExportAlerts">
+              💾 Export JSON
+            </button>
+          </div>
+        </header>
+
+        <!-- Alert Log Table -->
+        <div class="alerts-table-wrapper">
+          <table class="alerts-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Level</th>
+                <th>Bed / ID</th>
+                <th>Patient Name</th>
+                <th>Heart Rate</th>
+                <th>SpO2</th>
+                <th>Seq #</th>
+                <th>Sensor PID</th>
+                <th>Physiological Diagnosis</th>
+              </tr>
+            </thead>
+            <tbody id="alertsTableBody">
+              <!-- Dynamically populated from /api/alerts -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Injection Modal (for fast card popup) -->
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="modalTitle">Inject Emergency Anomaly - Bed 101</h3>
+        <button class="modal-close" onclick="closeInjectionModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="modalTargetBed" value="101">
+        <p class="modal-subtitle">Directly modifies patient telemetry via Named FIFO IPC channel.</p>
+        
+        <div class="modal-slider-row">
+          <label>Heart Rate: <strong class="text-green" id="modalHrVal">140 BPM</strong></label>
+          <input type="range" id="modalHrSlider" min="30" max="200" step="1" value="140" class="range-slider">
+        </div>
+
+        <div class="modal-slider-row">
+          <label>Blood Oxygen (SpO2): <strong class="text-cyan" id="modalSpo2Val">88 %</strong></label>
+          <input type="range" id="modalSpo2Slider" min="60" max="100" step="1" value="88" class="range-slider">
+        </div>
+
+        <div class="modal-quick-presets">
+          <button class="btn-xs btn-outline-danger" onclick="setModalValues(38, 84)">Severe Bradycardia (38 BPM, 84%)</button>
+          <button class="btn-xs btn-outline-warning" onclick="setModalValues(145, 94)">Acute Tachycardia (145 BPM, 94%)</button>
+          <button class="btn-xs btn-outline-danger" onclick="setModalValues(85, 78)">Acute Hypoxemia (85 BPM, 78%)</button>
+          <button class="btn-xs btn-outline-success" onclick="setModalValues(72, 98.6)">Normal Recovery (72 BPM, 98.6%)</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeInjectionModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitModalInjection()">Transmit to FIFO</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
